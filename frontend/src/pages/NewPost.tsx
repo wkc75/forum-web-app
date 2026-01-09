@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { TextField, Button, Typography, MenuItem, Box } from "@mui/material";
 import { createPost } from "../api/posts";
+import { getMe } from "../api/auth";
 import { getTopics } from "../api/topics";
 import type { Topic } from "../types/topic";
 
@@ -10,6 +11,8 @@ export default function NewPost() {
   const [topics, setTopics] = useState<Topic[]>([]);
   const [topicId, setTopicId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
+  const [me, setMe] = useState<string | null>(null);
+  const [loadingMe, setLoadingMe] = useState(true);
 
   useEffect(() => {
     getTopics().then((t) => {
@@ -18,6 +21,13 @@ export default function NewPost() {
         setTopicId(t[0].id);
       }
     });
+  }, []);
+
+  useEffect(() => {
+    getMe()
+      .then((u) => setMe(u.username))
+      .catch(() => setMe(null))
+      .finally(() => setLoadingMe(false));
   }, []);
 
   const submit = async () => {
@@ -42,12 +52,21 @@ export default function NewPost() {
         New Post
       </Typography>
 
+      {loadingMe ? (
+        <Typography>Checking login...</Typography>
+      ) : !me ? (
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          Log in to create a post.
+        </Typography>
+      ) : null}
+
       <TextField
         label="Title"
         fullWidth
         sx={{ mb: 2 }}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
+        disabled={!me}
       />
 
       <TextField
@@ -58,6 +77,7 @@ export default function NewPost() {
         sx={{ mb: 2 }}
         value={content}
         onChange={(e) => setContent(e.target.value)}
+        disabled={!me}
       />
 
       <TextField
@@ -67,7 +87,7 @@ export default function NewPost() {
         sx={{ mb: 2 }}
         value={topicId ?? ""}
         onChange={(e) => setTopicId(Number(e.target.value))}
-        disabled={topics.length === 0}
+        disabled={!me || topics.length === 0}
       >
         {topics.map((t) => (
           <MenuItem key={t.id} value={t.id}>
@@ -81,6 +101,7 @@ export default function NewPost() {
         onClick={submit}
         disabled={
           creating ||
+          !me ||
           !title.trim() ||
           !content.trim() ||
           topicId === null
