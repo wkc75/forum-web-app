@@ -43,3 +43,9 @@ CREATE TABLE IF NOT EXISTS comments (
         REFERENCES users(username)
         ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_posts_topic_id ON posts(topic_id);
+CREATE INDEX IF NOT EXISTS idx_posts_creator_username ON posts(creator_username);
+CREATE INDEX IF NOT EXISTS idx_comments_post_id ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_comments_creator_username ON comments(creator_username);
+CREATE INDEX IF NOT EXISTS idx_topics_creator_username ON topics(creator_username);

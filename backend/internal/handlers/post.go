@@ -35,6 +35,15 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUserFromContext(r)
 
 	_, err := h.DB.Exec(
+		"INSERT OR IGNORE INTO users (username) VALUES (?)",
+		user,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	result, err := h.DB.Exec(
 		`INSERT INTO posts (title, content, topic_id, creator_username, created_at)
 		 VALUES (?, ?, ?, ?, datetime('now'))`,
 		body.Title,
@@ -47,18 +56,54 @@ func (h *PostHandler) CreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, err := result.LastInsertId()
+	if err != nil {
+		http.Error(w, "Failed to create post", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]int64{"id": id})
 }
 
 func (h *PostHandler) GetPosts(w http.ResponseWriter, r *http.Request) {
 	topicID := r.URL.Query().Get("topicId")
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	sort := r.URL.Query().Get("sort")
 
-	rows, err := h.DB.Query(`
-		SELECT id, title, content, topic_id, creator_username, created_at, likes_count
+	query := `
+		SELECT posts.id, posts.title, posts.content, posts.topic_id, topics.name,
+		       posts.creator_username, posts.created_at, posts.likes_count
 		FROM posts
-		WHERE topic_id = ?
-		ORDER BY created_at DESC
-	`, topicID)
+		JOIN topics ON posts.topic_id = topics.id
+	`
+	conditions := []string{}
+	args := []interface{}{}
+
+	if topicID != "" {
+		conditions = append(conditions, "posts.topic_id = ?")
+		args = append(args, topicID)
+	}
+
+	if search != "" {
+		conditions = append(conditions, "(posts.title LIKE ? OR posts.content LIKE ?)")
+		like := "%" + search + "%"
+		args = append(args, like, like)
+	}
+
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	switch sort {
+	case "popular":
+		query += " ORDER BY posts.likes_count DESC, posts.created_at DESC"
+	default:
+		query += " ORDER BY posts.created_at DESC"
+	}
+
+	rows, err := h.DB.Query(query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -74,6 +119,7 @@ func (h *PostHandler) GetPosts(w http.ResponseWriter, r *http.Request) {
 			&p.Title,
 			&p.Content,
 			&p.TopicID,
+			&p.TopicName,
 			&p.CreatorUsername,
 			&p.CreatedAt,
 			&p.LikesCount,
@@ -151,14 +197,17 @@ func (h *PostHandler) GetPostByID(w http.ResponseWriter, r *http.Request) {
 
 	var post models.Post
 	err := h.DB.QueryRow(`
-		SELECT id, title, content, topic_id, creator_username, created_at, likes_count
+		SELECT posts.id, posts.title, posts.content, posts.topic_id, topics.name,
+		       posts.creator_username, posts.created_at, posts.likes_count
 		FROM posts
-		WHERE id = ?
+		JOIN topics ON posts.topic_id = topics.id
+		WHERE posts.id = ?
 	`, id).Scan(
 		&post.ID,
 		&post.Title,
 		&post.Content,
 		&post.TopicID,
+		&post.TopicName,
 		&post.CreatorUsername,
 		&post.CreatedAt,
 		&post.LikesCount,

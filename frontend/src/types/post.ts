@@ -3,6 +3,7 @@ export interface Post {
   title: string;
   content: string;
   topicId: number;
+  topicName: string;
   creatorUsername: string;
   createdAt: string;
   likesCount: number;

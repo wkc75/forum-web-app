@@ -1,15 +1,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
+  Alert,
   Typography,
   CircularProgress,
   Button,
   Box,
   Divider,
-  List,
-  ListItem,
-  ListItemText,
   TextField,
+  Stack,
 } from "@mui/material";
 
 import { getComments, createComment, deleteComment } from "../api/comments";
@@ -17,7 +16,9 @@ import { deletePost } from "../api/posts";
 import { apiFetch } from "../api/client";
 import type { Comment } from "../types/comment";
 import type { Post } from "../types/post";
-import { getMe } from "../api/auth";
+import CommentList from "../components/CommentList";
+import { formatDate } from "../utils/format";
+import { useAuth } from "../context/AuthContext";
 
 export default function PostDetail() {
   const { id } = useParams();
@@ -34,45 +35,49 @@ export default function PostDetail() {
 
   const [post, setPost] = useState<Post | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [me, setMe] = useState<string | null>(null);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
       apiFetch<Post>(`/api/posts/${postId}`),
       getComments(postId),
-      getMe().then((u) => u.username).catch(() => null),
     ])
-      .then(([p, c, user]) => {
+      .then(([p, c]) => {
         setPost(p);
         setComments(c);
-        setMe(user);
       })
-      .catch(() => setPost(null))
+      .catch((err) => {
+        setLoadError(err.message);
+        setPost(null);
+      })
       .finally(() => setLoading(false));
   }, [postId]);
 
   const likePost = async () => {
-    if (!me) return;
+    if (!user) return;
     try {
       await apiFetch(`/api/posts/${postId}/like`, { method: "POST" });
       setPost((prev) =>
         prev ? { ...prev, likesCount: prev.likesCount + 1 } : prev
       );
     } catch (err: any) {
-      alert(err.message || "Failed to like post.");
+      setActionError(err.message || "Failed to like post.");
     }
   };
 
   const submitComment = async () => {
-    if (!text.trim() || !me) return;
+    if (!text.trim() || !user) return;
     try {
+      setActionError(null);
       await createComment(text.trim(), postId);
       setComments(await getComments(postId));
       setText("");
     } catch (err: any) {
-      alert(err.message || "Failed to add comment.");
+      setActionError(err.message || "Failed to add comment.");
     }
   };
 
@@ -84,14 +89,22 @@ export default function PostDetail() {
   };
 
   if (loading) return <CircularProgress />;
+  if (loadError) return <Alert severity="error">{loadError}</Alert>;
   if (!post) return <Typography>Post not found.</Typography>;
 
   return (
     <Box>
       <Typography variant="h4">{post.title}</Typography>
-      <Typography color="text.secondary">by {post.creatorUsername}</Typography>
+      <Stack spacing={0.5} sx={{ mb: 2 }}>
+        <Typography color="text.secondary">
+          by {post.creatorUsername} · {formatDate(post.createdAt)}
+        </Typography>
+        <Typography color="text.secondary">
+          Topic: {post.topicName}
+        </Typography>
+      </Stack>
 
-      {me === post.creatorUsername && (
+      {user === post.creatorUsername && (
         <Button color="error" onClick={handleDeletePost}>
           Delete Post
         </Button>
@@ -99,7 +112,7 @@ export default function PostDetail() {
 
       <Typography sx={{ my: 2 }}>{post.content}</Typography>
 
-      <Button variant="outlined" onClick={likePost} disabled={!me}>
+      <Button variant="outlined" onClick={likePost} disabled={!user}>
         👍 Like ({post.likesCount})
       </Button>
 
@@ -107,37 +120,22 @@ export default function PostDetail() {
 
       <Typography variant="h6">Comments</Typography>
 
-      {comments.length === 0 ? (
-        <Typography>No comments yet.</Typography>
-      ) : (
-        <List>
-          {comments.map((c) => (
-            <ListItem
-              key={c.id}
-              secondaryAction={
-                me === c.creatorUsername && (
-                  <Button
-                    color="error"
-                    onClick={async () => {
-                      await deleteComment(c.id);
-                      setComments(await getComments(postId));
-                    }}
-                  >
-                    Delete
-                  </Button>
-                )
-              }
-            >
-              <ListItemText
-                primary={c.content}
-                secondary={`by ${c.creatorUsername}`}
-              />
-            </ListItem>
-          ))}
-        </List>
+      {actionError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {actionError}
+        </Alert>
       )}
 
-      {!me && (
+      <CommentList
+        comments={comments}
+        canDelete={(comment) => user === comment.creatorUsername}
+        onDelete={async (comment) => {
+          await deleteComment(comment.id);
+          setComments(await getComments(postId));
+        }}
+      />
+
+      {!user && (
         <Typography color="text.secondary" sx={{ mt: 1 }}>
           Log in to like or comment.
         </Typography>
@@ -149,12 +147,12 @@ export default function PostDetail() {
           label="Add comment"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          disabled={!me}
+          disabled={!user}
         />
         <Button
           sx={{ mt: 1 }}
           onClick={submitComment}
-          disabled={!text.trim() || !me}
+          disabled={!text.trim() || !user}
         >
           Comment
         </Button>

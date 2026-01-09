@@ -14,6 +14,7 @@ func RegisterRoutes(db *sql.DB) {
 	postHandler := &handlers.PostHandler{DB: db}
 	topicHandler := &handlers.TopicHandler{DB: db}
 	authHandler := &handlers.AuthHandler{DB: db}
+	meHandler := &handlers.MeHandler{DB: db}
 
 	// ======================
 	// Auth
@@ -21,6 +22,8 @@ func RegisterRoutes(db *sql.DB) {
 	http.HandleFunc("/api/login", authHandler.Login)
 	http.HandleFunc("/api/logout", authHandler.Logout)
 	http.HandleFunc("/api/me", authHandler.Me)
+	http.HandleFunc("/api/me/posts", middleware.RequireAuth(meHandler.GetMyPosts))
+	http.HandleFunc("/api/me/comments", middleware.RequireAuth(meHandler.GetMyComments))
 
 	// ======================
 	// Topics (list + create)

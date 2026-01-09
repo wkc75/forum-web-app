@@ -1,58 +1,56 @@
 import { useEffect, useState } from "react";
 import {
+  Alert,
   CircularProgress,
-  List,
-  ListItemButton,
-  ListItemText,
   Typography,
   TextField,
   Button,
   Box,
+  Stack,
 } from "@mui/material";
-import { Link } from "react-router-dom";
 
 import { getTopics, createTopic, deleteTopic } from "../api/topics";
-import { getMe } from "../api/auth";
+import { useAuth } from "../context/AuthContext";
 import type { Topic } from "../types/topic";
+import TopicCard from "../components/TopicCard";
 
 export default function Topics() {
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [me, setMe] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [newTopic, setNewTopic] = useState("");
   const [creating, setCreating] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
-    Promise.all([
-      getTopics(),
-      getMe().then((u) => u.username).catch(() => null),
-    ])
-      .then(([topics, user]) => {
-        setTopics(topics);
-        setMe(user);
-      })
+    setLoading(true);
+    setError(null);
+    getTopics(search.trim() || undefined)
+      .then(setTopics)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [search]);
 
   const handleCreate = async () => {
     if (!newTopic.trim()) return;
 
     try {
+      setActionError(null);
       setCreating(true);
       await createTopic(newTopic.trim());
       setNewTopic("");
-      setTopics(await getTopics());
+      setTopics(await getTopics(search.trim() || undefined));
     } catch (err: any) {
-      alert(err.message || "Failed to create topic");
+      setActionError(err.message || "Failed to create topic");
     } finally {
       setCreating(false);
     }
   };
 
   if (loading) return <CircularProgress />;
-  if (error) return <Typography color="error">{error}</Typography>;
+  if (error) return <Alert severity="error">{error}</Alert>;
 
   return (
     <>
@@ -60,8 +58,16 @@ export default function Topics() {
         Topics
       </Typography>
 
+      <TextField
+        label="Search topics"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        fullWidth
+        sx={{ mb: 3 }}
+      />
+
       {/* Create topic */}
-      {me ? (
+      {user ? (
         <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
           <TextField
             label="New Topic"
@@ -82,41 +88,30 @@ export default function Topics() {
         </Typography>
       )}
 
+      {actionError && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {actionError}
+        </Alert>
+      )}
+
       {/* Topic list */}
       {topics.length === 0 ? (
         <Typography>No topics yet.</Typography>
       ) : (
-        <List>
+        <Stack spacing={2}>
           {topics.map((t) => (
-            <ListItemButton
+            <TopicCard
               key={t.id}
-              component={Link}
-              to={`/topic/${t.id}`}
-            >
-              <ListItemText
-                primary={t.name}
-                secondary={`by ${t.creatorUsername}`}
-              />
-
-              {me === t.creatorUsername && (
-                <Button
-                  color="error"
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-
-                    if (!window.confirm("Delete this topic?")) return;
-
-                    await deleteTopic(t.id);
-                    setTopics(await getTopics());
-                }}
-                >
-                  Delete
-                </Button>
-              )}
-            </ListItemButton>
+              topic={t}
+              showDelete={user === t.creatorUsername}
+              onDelete={async () => {
+                if (!window.confirm("Delete this topic?")) return;
+                await deleteTopic(t.id);
+                setTopics(await getTopics(search.trim() || undefined));
+              }}
+            />
           ))}
-        </List>
+        </Stack>
       )}
     </>
   );

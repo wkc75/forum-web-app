@@ -5,6 +5,7 @@ type Post struct {
 	Title           string `json:"title"`
 	Content         string `json:"content"`
 	TopicID         int    `json:"topicId"`
+	TopicName       string `json:"topicName"`
 	CreatorUsername string `json:"creatorUsername"`
 	CreatedAt       string `json:"createdAt"`
 	LikesCount      int    `json:"likesCount"`
