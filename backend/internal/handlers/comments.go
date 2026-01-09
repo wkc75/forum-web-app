@@ -34,6 +34,15 @@ func (h *CommentHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	user := middleware.GetUserFromContext(r)
 
 	_, err := h.DB.Exec(
+		"INSERT OR IGNORE INTO users (username) VALUES (?)",
+		user,
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = h.DB.Exec(
 		`INSERT INTO comments (content, post_id, creator_username, created_at)
 		 VALUES (?, ?, ?, datetime('now'))`,
 		body.Content,
@@ -50,12 +59,18 @@ func (h *CommentHandler) CreateComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *CommentHandler) GetComments(w http.ResponseWriter, r *http.Request) {
 	postID := r.URL.Query().Get("postId")
+	if strings.TrimSpace(postID) == "" {
+		http.Error(w, "postId is required", http.StatusBadRequest)
+		return
+	}
 
 	rows, err := h.DB.Query(`
-		SELECT id, content, post_id, creator_username, created_at
+		SELECT comments.id, comments.content, comments.post_id, posts.title,
+		       comments.creator_username, comments.created_at
 		FROM comments
-		WHERE post_id = ?
-		ORDER BY created_at ASC
+		JOIN posts ON comments.post_id = posts.id
+		WHERE comments.post_id = ?
+		ORDER BY comments.created_at ASC
 	`, postID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,6 +86,7 @@ func (h *CommentHandler) GetComments(w http.ResponseWriter, r *http.Request) {
 			&c.ID,
 			&c.Content,
 			&c.PostID,
+			&c.PostTitle,
 			&c.CreatorUsername,
 			&c.CreatedAt,
 		)

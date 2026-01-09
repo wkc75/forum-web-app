@@ -16,11 +16,20 @@ type TopicHandler struct {
 }
 
 func (h *TopicHandler) GetTopics(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.DB.Query(`
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+
+	query := `
 		SELECT id, name, creator_username, created_at
 		FROM topics
-		ORDER BY created_at DESC
-	`)
+	`
+	args := []interface{}{}
+	if search != "" {
+		query += " WHERE name LIKE ?"
+		args = append(args, "%"+search+"%")
+	}
+	query += " ORDER BY created_at DESC"
+
+	rows, err := h.DB.Query(query, args...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -78,6 +87,10 @@ func (h *TopicHandler) CreateTopic(w http.ResponseWriter, r *http.Request) {
 		creator,
 	)
 	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: topics.name") {
+			http.Error(w, "Topic already exists", http.StatusBadRequest)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
