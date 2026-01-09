@@ -51,20 +51,29 @@ export default function PostDetail() {
       })
       .catch(() => setPost(null))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [postId]);
 
   const likePost = async () => {
-    await apiFetch(`/api/posts/${postId}/like`, { method: "POST" });
-    setPost((prev) =>
-      prev ? { ...prev, likesCount: prev.likesCount + 1 } : prev
-    );
+    if (!me) return;
+    try {
+      await apiFetch(`/api/posts/${postId}/like`, { method: "POST" });
+      setPost((prev) =>
+        prev ? { ...prev, likesCount: prev.likesCount + 1 } : prev
+      );
+    } catch (err: any) {
+      alert(err.message || "Failed to like post.");
+    }
   };
 
   const submitComment = async () => {
-    if (!text.trim()) return;
-    await createComment(text.trim(), postId);
-    setComments(await getComments(postId));
-    setText("");
+    if (!text.trim() || !me) return;
+    try {
+      await createComment(text.trim(), postId);
+      setComments(await getComments(postId));
+      setText("");
+    } catch (err: any) {
+      alert(err.message || "Failed to add comment.");
+    }
   };
 
   const handleDeletePost = async () => {
@@ -90,7 +99,7 @@ export default function PostDetail() {
 
       <Typography sx={{ my: 2 }}>{post.content}</Typography>
 
-      <Button variant="outlined" onClick={likePost}>
+      <Button variant="outlined" onClick={likePost} disabled={!me}>
         👍 Like ({post.likesCount})
       </Button>
 
@@ -128,14 +137,25 @@ export default function PostDetail() {
         </List>
       )}
 
+      {!me && (
+        <Typography color="text.secondary" sx={{ mt: 1 }}>
+          Log in to like or comment.
+        </Typography>
+      )}
+
       <Box sx={{ mt: 2 }}>
         <TextField
           fullWidth
           label="Add comment"
           value={text}
           onChange={(e) => setText(e.target.value)}
+          disabled={!me}
         />
-        <Button sx={{ mt: 1 }} onClick={submitComment} disabled={!text.trim()}>
+        <Button
+          sx={{ mt: 1 }}
+          onClick={submitComment}
+          disabled={!text.trim() || !me}
+        >
           Comment
         </Button>
       </Box>

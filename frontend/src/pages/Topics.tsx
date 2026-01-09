@@ -61,20 +61,26 @@ export default function Topics() {
       </Typography>
 
       {/* Create topic */}
-      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-        <TextField
-          label="New Topic"
-          value={newTopic}
-          onChange={(e) => setNewTopic(e.target.value)}
-        />
-        <Button
-          variant="contained"
-          onClick={handleCreate}
-          disabled={!newTopic.trim() || creating}
-        >
-          Create
-        </Button>
-      </Box>
+      {me ? (
+        <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+          <TextField
+            label="New Topic"
+            value={newTopic}
+            onChange={(e) => setNewTopic(e.target.value)}
+          />
+          <Button
+            variant="contained"
+            onClick={handleCreate}
+            disabled={!newTopic.trim() || creating}
+          >
+            Create
+          </Button>
+        </Box>
+      ) : (
+        <Typography sx={{ mb: 3 }} color="text.secondary">
+          Log in to create topics.
+        </Typography>
+      )}
 
       {/* Topic list */}
       {topics.length === 0 ? (
