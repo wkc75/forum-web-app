@@ -1,100 +1,75 @@
 import { useEffect, useState } from "react";
-import {
-  Alert,
-  Box,
-  CircularProgress,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import { useSearchParams } from "react-router-dom";
-import { getPosts } from "../api/posts";
-import PostCard from "../components/PostCard";
-import type { Post } from "../types/post";
+import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
+import { getHealth, type HealthResponse } from "../api/minimal";
 
 export default function Home() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const query = searchParams.get("q") ?? "";
-  const sort =
-    searchParams.get("sort") === "popular" ? "popular" : "newest";
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    getPosts({ search: query || undefined, sort })
-      .then(setPosts)
+    getHealth()
+      .then(setHealth)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [query, sort]);
-
-  const handleSearchChange = (value: string) => {
-    const params = new URLSearchParams(searchParams);
-    if (value.trim()) {
-      params.set("q", value);
-    } else {
-      params.delete("q");
-    }
-    setSearchParams(params);
-  };
-
-  const handleSortChange = (value: "newest" | "popular") => {
-    const params = new URLSearchParams(searchParams);
-    if (value === "popular") {
-      params.set("sort", "popular");
-    } else {
-      params.delete("sort");
-    }
-    setSearchParams(params);
-  };
+  }, []);
 
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
-        Discover Posts
+        Forum Tutorial Starter
       </Typography>
-
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3 }}>
-        <TextField
-          label="Search posts"
-          value={query}
-          onChange={(event) => handleSearchChange(event.target.value)}
-          fullWidth
-        />
-        <FormControl sx={{ minWidth: 200 }}>
-          <InputLabel id="sort-posts">Sort by</InputLabel>
-          <Select
-            labelId="sort-posts"
-            label="Sort by"
-            value={sort}
-            onChange={(event) =>
-              handleSortChange(event.target.value as "newest" | "popular")
-            }
-          >
-            <MenuItem value="newest">Newest</MenuItem>
-            <MenuItem value="popular">Most liked</MenuItem>
-          </Select>
-        </FormControl>
-      </Stack>
+      <Typography color="text.secondary" sx={{ mb: 3 }}>
+        This page calls a minimal Go endpoint that reads counts from the
+        database. It helps show how the backend and database connect before we
+        build more features.
+      </Typography>
 
       {loading ? (
         <CircularProgress />
       ) : error ? (
         <Alert severity="error">{error}</Alert>
-      ) : posts.length === 0 ? (
-        <Typography color="text.secondary">No posts yet.</Typography>
-      ) : (
+      ) : health ? (
         <Stack spacing={2}>
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          <Box sx={{ p: 2, borderRadius: 2, bgcolor: "background.paper" }}>
+            <Typography variant="subtitle1">
+              {health.message}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Database status: {health.database}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Server time: {new Date(health.time).toLocaleString()}
+            </Typography>
+          </Box>
+          <Box sx={{ p: 2, borderRadius: 2, bgcolor: "background.paper" }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Current database counts
+            </Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <Box>
+                <Typography variant="h6">{health.counts.users}</Typography>
+                <Typography color="text.secondary">Users</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6">{health.counts.topics}</Typography>
+                <Typography color="text.secondary">Topics</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6">{health.counts.posts}</Typography>
+                <Typography color="text.secondary">Posts</Typography>
+              </Box>
+              <Box>
+                <Typography variant="h6">{health.counts.comments}</Typography>
+                <Typography color="text.secondary">Comments</Typography>
+              </Box>
+            </Stack>
+          </Box>
         </Stack>
+      ) : (
+        <Typography color="text.secondary">No data loaded yet.</Typography>
       )}
     </Box>
   );
